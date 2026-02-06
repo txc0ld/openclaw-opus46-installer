@@ -601,9 +601,8 @@ main() {
   echo -e "${BOLD}[4/7] Generating patches${NC}"
   echo ""
 
-  local tmpdir
   tmpdir=$(mktemp -d)
-  trap 'rm -rf "$tmpdir"' EXIT
+  trap 'rm -rf "${tmpdir:-}"' EXIT
 
   # Catalog patch
   info "Patching model catalog..."
@@ -747,17 +746,17 @@ main() {
   fi
 
   echo ""
-  echo "  Usage:"
-  echo "    Switch model:      ${BOLD}/model opus46${NC}"
-  echo "    Full reference:    ${BOLD}/model anthropic/claude-opus-4-6${NC}"
-  echo "    Verify:            ${BOLD}/model status${NC}"
+  echo -e "  Usage:"
+  echo -e "    Switch model:      ${BOLD}/model opus46${NC}"
+  echo -e "    Full reference:    ${BOLD}/model anthropic/claude-opus-4-6${NC}"
+  echo -e "    Verify:            ${BOLD}/model status${NC}"
   if [[ "$SET_PRIMARY" == false && "$ADD_ONLY" == false ]]; then
     echo ""
-    echo "  Note: Your primary model was not changed."
-    echo "  To set Opus 4.6 as default, re-run with ${BOLD}--set-primary${NC}"
+    echo -e "  Note: Your primary model was not changed."
+    echo -e "  To set Opus 4.6 as default, re-run with ${BOLD}--set-primary${NC}"
   fi
   echo ""
-  echo "  Rollback:            ${BOLD}./install-opus46.sh --rollback${NC}"
+  echo -e "  Rollback:            ${BOLD}./install-opus46.sh --rollback${NC}"
   echo ""
   echo -e "${DIM}  Note: npm update -g ${CLI_CMD} will overwrite the catalog.${NC}"
   echo -e "${DIM}  Re-run this installer after any package update.${NC}"
