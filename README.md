@@ -63,7 +63,7 @@ The installer modifies **exactly two files**. Both are backed up with a timestam
 | `models.generated.js` | Inserts a `claude-opus-4-6` catalog entry above each `claude-opus-4-5` block, inheriting its `provider` field. |
 | `openclaw.json` | Adds `anthropic/claude-opus-4-6` to the model allowlist with alias `opus46`. If per-agent allowlists exist in `agents.list[]`, adds it there too. |
 
-By default, the installer **sets Opus 4.6 as the primary model**. Pass `--no-primary` to add it to the catalog and allowlist without changing your default.
+By default, the installer **asks whether to set Opus 4.6 as the primary model** (default: yes). Pass `--no-primary` to skip the prompt and keep your current default.
 
 ---
 
@@ -119,7 +119,7 @@ The configuration patch uses a **deep-merge strategy**: it traverses the existin
   },
 ```
 
-One key inserted. Everything else — `primary`, `workspace`, `list`, `identity`, `skills`, `channels` — is identical. By default, the installer also sets `agents.defaults.model.primary` to `anthropic/claude-opus-4-6`. Pass `--no-primary` to skip this.
+One key inserted. Everything else — `primary`, `workspace`, `list`, `identity`, `skills`, `channels` — is identical. During installation, you'll be asked whether to also set `agents.defaults.model.primary` to Opus 4.6 (pass `--no-primary` to skip).
 
 ---
 
@@ -129,7 +129,7 @@ One key inserted. Everything else — `primary`, `workspace`, `list`, `identity`
 |------|-------------|
 | `--dry-run` | Preview all changes as a unified diff. No files are written. |
 | `--add-only` | Patch the model catalog only. Skip `openclaw.json` entirely. |
-| `--no-primary` | Add to catalog and allowlist but keep current primary model unchanged. |
+| `--no-primary` | Skip the primary model prompt. Keep current primary unchanged. |
 | `--rollback` | Restore the most recent timestamped backup for both files. |
 | `--no-restart` | Apply patches without restarting the gateway. |
 | `--force` | Bypass compatibility checks and confirmation prompts. Rejected when stdin is piped. |
@@ -139,11 +139,11 @@ One key inserted. Everything else — `primary`, `workspace`, `list`, `identity`
 
 1. Adds `claude-opus-4-6` to the model catalog.
 2. Registers `anthropic/claude-opus-4-6` in the config allowlist (alias: `opus46`).
-3. Sets it as the primary model.
+3. Asks whether to set it as the primary model (default: yes).
 4. Adds the entry to any per-agent `models` allowlists found in `agents.list[]`.
 5. Cold-restarts the gateway (required for catalog changes to take effect).
 
-To add the model without changing your primary, pass `--no-primary`.
+Pass `--no-primary` to skip the prompt and keep your current primary model.
 
 ### Environment Variables
 
