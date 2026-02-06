@@ -1,0 +1,193 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CI — Lint and test the openclaw-opus46-installer
+# ─────────────────────────────────────────────────────────────────────────────
+# Runs on every push to main and on pull requests.
+# Two jobs:
+#   1. lint        — ShellCheck static analysis of all .sh files
+#   2. test-merge  — Verifies the config deep-merge is non-destructive
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: '.'
+          severity: warning
+
+  test-merge:
+    name: Config Merge Safety Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify script is executable and --help exits cleanly
+        run: |
+          chmod +x install-opus46.sh
+          ./install-opus46.sh --help
+
+      - name: Verify non-destructive config merge
+        run: |
+          # Simulate a complex user config with identity, skills, channels,
+          # multi-agent setup, and per-agent model allowlists.
+          cat > /tmp/test-config.json << 'EOF'
+          {
+            "agents": {
+              "defaults": {
+                "model": {
+                  "primary": "anthropic/claude-opus-4-5",
+                  "fallbacks": ["anthropic/claude-sonnet-4-5", "openai/gpt-5.2"]
+                },
+                "models": {
+                  "anthropic/claude-opus-4-5": { "alias": "opus" },
+                  "anthropic/claude-sonnet-4-5": { "alias": "sonnet" },
+                  "deepseek/deepseek-r1": { "alias": "ds" }
+                },
+                "workspace": "/home/test/.openclaw/workspace",
+                "compaction": { "mode": "safeguard" },
+                "maxConcurrent": 4,
+                "subagents": { "maxConcurrent": 8 }
+              },
+              "list": [
+                {
+                  "id": "main",
+                  "default": true,
+                  "name": "TestBot",
+                  "model": "anthropic/claude-opus-4-5",
+                  "identity": { "name": "TestBot", "emoji": "🦞" },
+                  "models": {
+                    "anthropic/claude-opus-4-5": { "alias": "opus" },
+                    "anthropic/claude-sonnet-4-5": { "alias": "sonnet" }
+                  }
+                },
+                {
+                  "id": "coder",
+                  "name": "ShipIt",
+                  "model": "anthropic/claude-sonnet-4-5",
+                  "workspace": "/home/test/.openclaw/workspace-coder"
+                }
+              ]
+            },
+            "skills": {
+              "load": {
+                "extraDirs": ["/home/test/custom-skills"],
+                "watch": true
+              }
+            },
+            "channels": {
+              "telegram": { "enabled": true, "dmPolicy": "allowlist" },
+              "whatsapp": { "selfChatMode": true, "allowFrom": ["+15551234567"] }
+            },
+            "ui": {
+              "assistant": { "name": "TestBot", "emoji": "🦞" }
+            }
+          }
+          EOF
+
+          python3 << 'PYTEST'
+          import json, sys
+
+          with open('/tmp/test-config.json') as f:
+              config = json.load(f)
+
+          # ── Replicate the installer's deep-merge logic ──────────────────
+          def deep_set(obj, keys, value, overwrite=False):
+              for key in keys[:-1]:
+                  if key not in obj or not isinstance(obj[key], dict):
+                      obj[key] = {}
+                  obj = obj[key]
+              final_key = keys[-1]
+              if overwrite or final_key not in obj:
+                  obj[final_key] = value
+
+          deep_set(config, ['agents', 'defaults', 'models', 'anthropic/claude-opus-4-6'], {'alias': 'opus46'})
+
+          for agent in config.get('agents', {}).get('list', []):
+              if isinstance(agent, dict):
+                  m = agent.get('models', None)
+                  if isinstance(m, dict) and 'anthropic/claude-opus-4-6' not in m:
+                      m['anthropic/claude-opus-4-6'] = {'alias': 'opus46'}
+
+          # ── Assert every existing value is preserved ────────────────────
+          assertions = {
+              'primary model unchanged':
+                  config['agents']['defaults']['model']['primary'] == 'anthropic/claude-opus-4-5',
+              'fallback chain intact':
+                  config['agents']['defaults']['model']['fallbacks'] == ['anthropic/claude-sonnet-4-5', 'openai/gpt-5.2'],
+              'opus 4.5 alias preserved':
+                  config['agents']['defaults']['models']['anthropic/claude-opus-4-5'] == {'alias': 'opus'},
+              'sonnet alias preserved':
+                  config['agents']['defaults']['models']['anthropic/claude-sonnet-4-5'] == {'alias': 'sonnet'},
+              'deepseek entry preserved':
+                  config['agents']['defaults']['models']['deepseek/deepseek-r1'] == {'alias': 'ds'},
+              'opus 4.6 added to defaults':
+                  config['agents']['defaults']['models']['anthropic/claude-opus-4-6'] == {'alias': 'opus46'},
+              'workspace path intact':
+                  config['agents']['defaults']['workspace'] == '/home/test/.openclaw/workspace',
+              'compaction config intact':
+                  config['agents']['defaults']['compaction'] == {'mode': 'safeguard'},
+              'maxConcurrent intact':
+                  config['agents']['defaults']['maxConcurrent'] == 4,
+              'subagents config intact':
+                  config['agents']['defaults']['subagents'] == {'maxConcurrent': 8},
+              'agent "main" identity intact':
+                  config['agents']['list'][0]['identity'] == {'name': 'TestBot', 'emoji': '🦞'},
+              'agent "main" primary model intact':
+                  config['agents']['list'][0]['model'] == 'anthropic/claude-opus-4-5',
+              'opus 4.6 added to agent "main" allowlist':
+                  'anthropic/claude-opus-4-6' in config['agents']['list'][0]['models'],
+              'agent "coder" unchanged (no allowlist)':
+                  config['agents']['list'][1] == {
+                      'id': 'coder', 'name': 'ShipIt',
+                      'model': 'anthropic/claude-sonnet-4-5',
+                      'workspace': '/home/test/.openclaw/workspace-coder'
+                  },
+              'skills config intact':
+                  config['skills'] == {'load': {'extraDirs': ['/home/test/custom-skills'], 'watch': True}},
+              'telegram channel intact':
+                  config['channels']['telegram'] == {'enabled': True, 'dmPolicy': 'allowlist'},
+              'whatsapp channel intact':
+                  config['channels']['whatsapp'] == {'selfChatMode': True, 'allowFrom': ['+15551234567']},
+              'ui identity intact':
+                  config['ui']['assistant'] == {'name': 'TestBot', 'emoji': '🦞'},
+          }
+
+          failed = []
+          for label, passed in assertions.items():
+              status = 'PASS' if passed else 'FAIL'
+              print(f'  [{status}] {label}')
+              if not passed:
+                  failed.append(label)
+
+          print(f'\n{len(assertions)} assertions, {len(failed)} failures')
+
+          if failed:
+              print(f'\nFailed: {", ".join(failed)}', file=sys.stderr)
+              sys.exit(1)
+          PYTEST
