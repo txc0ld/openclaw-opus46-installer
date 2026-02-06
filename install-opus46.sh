@@ -26,7 +26,7 @@
 # Options:
 #   --dry-run          Preview changes as a unified diff (no files written)
 #   --add-only         Patch catalog only — skip openclaw.json
-#   --set-primary      Also set Opus 4.6 as the primary model
+#   --no-primary       Add to catalog and allowlist but keep current primary model
 #   --rollback         Restore the most recent timestamped backup
 #   --no-restart       Apply patches without restarting the gateway
 #   --force            Bypass compatibility checks and prompts (rejected when piped)
@@ -73,7 +73,7 @@ BANNER
 
 DRY_RUN=false
 ADD_ONLY=false
-SET_PRIMARY=false
+SET_PRIMARY=true
 ROLLBACK=false
 NO_RESTART=false
 FORCE=false
@@ -89,7 +89,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run)      DRY_RUN=true;      shift ;;
     --add-only)     ADD_ONLY=true;     shift ;;
-    --set-primary)  SET_PRIMARY=true;  shift ;;
+    --no-primary)   SET_PRIMARY=false; shift ;;
     --rollback)     ROLLBACK=true;     shift ;;
     --no-restart)   NO_RESTART=true;   shift ;;
     --force)        FORCE=true;        shift ;;
@@ -100,7 +100,7 @@ while [[ $# -gt 0 ]]; do
       echo "Options:"
       echo "  --dry-run          Preview all changes as a unified diff (no files written)"
       echo "  --add-only         Patch model catalog only; skip openclaw.json"
-      echo "  --set-primary      Also set Opus 4.6 as the primary model"
+      echo "  --no-primary       Add to catalog and allowlist but keep current primary model"
       echo "  --rollback         Restore the most recent timestamped backup"
       echo "  --no-restart       Apply patches without restarting the gateway"
       echo "  --force            Bypass compatibility checks and prompts (rejected when piped)"
@@ -109,10 +109,10 @@ while [[ $# -gt 0 ]]; do
       echo "Default behavior:"
       echo "  1. Adds claude-opus-4-6 to the model catalog"
       echo "  2. Registers it in the config allowlist (alias: opus46)"
-      echo "  3. Adds it to per-agent allowlists in agents.list[] (if present)"
-      echo "  4. Cold-restarts the gateway"
+      echo "  3. Sets it as the primary model"
+      echo "  4. Adds it to per-agent allowlists in agents.list[] (if present)"
+      echo "  5. Cold-restarts the gateway"
       echo ""
-      echo "  Does NOT change the primary model (use --set-primary)."
       echo "  Does NOT modify identity files, skills, workspaces, channels, or auth."
       echo ""
       echo "Environment:"
@@ -661,6 +661,7 @@ main() {
     echo "    Will modify:"
     echo "      • ${CATALOG_FILE}"
     [[ "$ADD_ONLY" == false ]] && echo "      • ${CONFIG_FILE}"
+    [[ "$SET_PRIMARY" == true && "$ADD_ONLY" == false ]] && echo "      • Primary model → anthropic/claude-opus-4-6"
     echo ""
     echo "    Will NOT modify:"
     echo "      • SOUL.md, IDENTITY.md, AGENTS.md, TOOLS.md, USER.md, MEMORY.md"
@@ -750,10 +751,13 @@ main() {
   echo -e "    Switch model:      ${BOLD}/model opus46${NC}"
   echo -e "    Full reference:    ${BOLD}/model anthropic/claude-opus-4-6${NC}"
   echo -e "    Verify:            ${BOLD}/model status${NC}"
-  if [[ "$SET_PRIMARY" == false && "$ADD_ONLY" == false ]]; then
+  if [[ "$SET_PRIMARY" == true && "$ADD_ONLY" == false ]]; then
     echo ""
-    echo -e "  Note: Your primary model was not changed."
-    echo -e "  To set Opus 4.6 as default, re-run with ${BOLD}--set-primary${NC}"
+    echo -e "  Primary model set to ${BOLD}anthropic/claude-opus-4-6${NC}"
+  elif [[ "$SET_PRIMARY" == false && "$ADD_ONLY" == false ]]; then
+    echo ""
+    echo -e "  Note: Your primary model was not changed (--no-primary)."
+    echo -e "  Switch interactively with ${BOLD}/model opus46${NC}"
   fi
   echo ""
   echo -e "  Rollback:            ${BOLD}./install-opus46.sh --rollback${NC}"

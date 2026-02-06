@@ -122,7 +122,7 @@ Open `~/.openclaw/openclaw.json`.
 ```
 
 > [!IMPORTANT]
-> **Do not modify `primary`** unless you explicitly intend to change your default model. Switch interactively at any time with `/model opus46`.
+> The automated installer sets Opus 4.6 as the primary model by default. If following this manual guide, update `primary` to `"anthropic/claude-opus-4-6"` under `agents.defaults.model` to match the installer's default behavior. Skip this if you prefer to keep your current default and switch manually with `/model opus46`.
 >
 > **Do not alter any other keys.** Identity, skills, channels, workspace paths, agent definitions — all must remain as-is. This is an additive change only.
 
